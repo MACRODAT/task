@@ -1,8 +1,10 @@
+
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
 import type { Task } from "@/lib/data";
-import { initialTasks, initialEntities, services as initialServices } from "@/lib/data";
+import { initialEntities, services as initialServices } from "@/lib/data";
+import { useTasks, getDb } from '@/lib/task-list'
 import { Button } from "@/components/ui/button";
 import { TaskList, type FilterState, type SortState } from "@/components/task-list";
 import { TaskModal } from "@/components/task-modal";
@@ -17,7 +19,7 @@ interface TaskDashboardProps {
 }
 
 export function TaskDashboard({ activeFolder, onTaskCountChange }: TaskDashboardProps) {
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const tasks_: Task[] = useTasks();
   const [entities, setEntities] = useState(initialEntities);
   const [services, setServices] = useState(initialServices);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -52,14 +54,16 @@ export function TaskDashboard({ activeFolder, onTaskCountChange }: TaskDashboard
     let folderTasks: Task[];
     switch (activeFolder) {
       case "instance":
-        folderTasks = tasks.filter((task) => !task.done);
+        folderTasks = tasks_
+          .filter((task) => !task.done);
         break;
       case "classed":
-        folderTasks = tasks.filter((task) => task.done);
+        folderTasks = tasks_.filter((task) => task.done);
         break;
+
       case "main":
       default:
-        folderTasks = tasks;
+        folderTasks = tasks_;
     }
 
     const filtered = folderTasks.filter(task => {
@@ -112,6 +116,7 @@ export function TaskDashboard({ activeFolder, onTaskCountChange }: TaskDashboard
             comparison = aValue === bValue ? 0 : aValue ? -1 : 1;
         }
 
+
         return sort.direction === 'asc' ? comparison : -comparison;
       });
     }
@@ -137,7 +142,8 @@ export function TaskDashboard({ activeFolder, onTaskCountChange }: TaskDashboard
     }
 
     return filtered;
-  }, [tasks, activeFolder, filters, sort]);
+
+  }, [tasks_, activeFolder, filters, sort]);
 
   useEffect(() => {
     onTaskCountChange(processedTasks.length);
@@ -153,7 +159,7 @@ export function TaskDashboard({ activeFolder, onTaskCountChange }: TaskDashboard
     setIsCommentModalOpen(true);
   };
 
-  const handleSaveTask = (taskData: Omit<Task, 'id' | 'done'>) => {
+  const handleSaveTask = async (taskData: Omit<Task, 'id' | 'done'>) => {
     const fromValue = taskData.from;
     if (fromValue && !entities.some(e => e.value === fromValue)) {
       const newEntity = { value: fromValue, label: fromValue };
@@ -166,10 +172,11 @@ export function TaskDashboard({ activeFolder, onTaskCountChange }: TaskDashboard
       setServices(prev => [...prev, newService]);
     }
     
+    const db = await getDb();
+    // No setTasks needed, handled by DB and useTasks
     if (taskToEdit) {
-      setTasks(tasks.map((task) =>
-        task.id === taskToEdit.id ? { ...taskToEdit, ...taskData, done: taskToEdit.done } : task
-      ));
+      // Update task in DB
+      await db.tasks.upsert({ ...taskToEdit, ...taskData, done: taskToEdit.done });
       toast({ title: "Task updated successfully!" });
     } else {
       const newTask: Task = {
@@ -177,33 +184,37 @@ export function TaskDashboard({ activeFolder, onTaskCountChange }: TaskDashboard
         id: `TASK-${Math.floor(Math.random() * 10000)}`,
         done: false,
       };
-      setTasks([newTask, ...tasks]);
+      await db.tasks.insert(newTask);
       toast({ title: "Task added successfully!" });
     }
     setIsModalOpen(false);
     setTaskToEdit(null);
   };
 
-  const handleSaveComment = (taskId: string, comments: string) => {
-    handleUpdateTaskInline(taskId, { comments });
+  const handleSaveComment = async (taskId: string, comments: string) => {
+    await handleUpdateTaskInline(taskId, { comments });
     setIsCommentModalOpen(false);
     setTaskToEdit(null);
     toast({ title: "Comment updated." });
   }
 
-  const handleDeleteTask = (taskId: string) => {
-    setTasks(tasks.filter((task) => task.id !== taskId));
-    toast({ title: "Task deleted", variant: "destructive" });
+  const handleDeleteTask = async (taskId: string) => {
+    const db = await getDb();
+    const taskDoc = await db.tasks.findOne({ selector: { id: taskId } }).exec();
+    if (taskDoc) {
+      await taskDoc.remove();
+      toast({ title: "Task deleted", variant: "destructive" });
+    }
+    // No setTasks needed, handled by DB and useTasks
   };
   
-  const handleUpdateTaskInline = (taskId: string, updates: Partial<Task>) => {
-    setTasks(currentTasks => 
-      currentTasks.map(task => 
-        task.id === taskId 
-          ? { ...task, ...updates } 
-          : task
-      )
-    );
+  const handleUpdateTaskInline = async (taskId: string, updates: Partial<Task>) => {
+    const db = await getDb();
+    const taskDoc = await db.tasks.findOne({ selector: { id: taskId } }).exec();
+    if (taskDoc) {
+      await taskDoc.patch(updates);
+    }
+    // No setTasks needed, handled by DB and useTasks
   }
 
   return (

@@ -72,7 +72,6 @@ export function TaskList({ tasks, filters, sort, onFilterChange, onSortChange, o
     }
   }
 
-<<<<<<< HEAD
   const formatDateWithTryCatch = (date: any): string => {
     try {
       // Attempt to format the date
@@ -85,8 +84,6 @@ export function TaskList({ tasks, filters, sort, onFilterChange, onSortChange, o
   };
   
 
-=======
->>>>>>> 9d27974d0d6a02caed8734eed84a0430ad797d15
   return (
     <>
       {/* Desktop View */}
@@ -160,11 +157,7 @@ export function TaskList({ tasks, filters, sort, onFilterChange, onSortChange, o
                   <TableCell className="py-1 align-top">
                     <span className="font-code">{task.txt}</span>
                   </TableCell>
-<<<<<<< HEAD
                   <TableCell className="py-1 align-top">{formatDateWithTryCatch(task.date)}</TableCell>
-=======
-                  <TableCell className="py-1 align-top">{format(task.date, "dd/MM/yyyy")}</TableCell>
->>>>>>> 9d27974d0d6a02caed8734eed84a0430ad797d15
                   <TableCell className="py-1 align-top">
                     <Badge variant="secondary">{task.service}</Badge>
                   </TableCell>
@@ -220,11 +213,7 @@ export function TaskList({ tasks, filters, sort, onFilterChange, onSortChange, o
             <CardContent className="space-y-2 text-sm">
                 <div><strong>From:</strong> {task.from}</div>
                 <div><strong>Service:</strong> <Badge variant="secondary">{task.service}</Badge></div>
-<<<<<<< HEAD
                 <div><strong>Date:</strong> {formatDateWithTryCatch(task.date)}</div>
-=======
-                <div><strong>Date:</strong> {format(task.date, "dd/MM/yyyy")}</div>
->>>>>>> 9d27974d0d6a02caed8734eed84a0430ad797d15
                 <div onDoubleClick={() => onEditComment(task)}>
                    <Textarea
                     value={task.comments}
