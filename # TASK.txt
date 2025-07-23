@@ -1,0 +1,29 @@
+# TASK
+I want you to create a json file with a possible scenario (in French, a short scenario) for each message in the input file. 
+I need you to imagine each message separately, as if it were a standalone message. 
+Then try to come up with a scenario which you should find plausible (write it yourself).
+    
+
+# INPUT
+A txt file with messages. Each message begins with "FM:             " and ends before "FM:             " of the next message.
+
+# OUTPUT
+A json file with a possible scenario for each message in the input file, formatted as follows:
+
+{
+{
+    "message": "FM:             3BN\nTO:      SECMAR\n",
+    "scenario": "Tu es 3BN, tu t'addresse au SECMAR, pour demander une visite de groupe."
+},
+{
+    "message": "FM:             3BN\nTO:      SECMAR\n",
+    "scenario": "Tu es 3BN, tu t'addresse au SECMAR, pour demander une visite de groupe."
+},
+}
+
+
+
+
+
+
+
