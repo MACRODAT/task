@@ -159,7 +159,7 @@ export function TaskDashboard({ activeFolder, onTaskCountChange }: TaskDashboard
   };
 
   const handleSaveTask = async (taskData: Omit<Task, 'id' | 'done'>) => {
-    console.log(taskData);
+    // console.log(taskData);
     const fromValue = taskData.from;
     if (fromValue && !entities.some(e => e.value === fromValue)) {
       const newEntity = { value: fromValue, label: fromValue };
@@ -173,8 +173,6 @@ export function TaskDashboard({ activeFolder, onTaskCountChange }: TaskDashboard
     }
     
     const db = await getDb();
-
-    console.log(taskData)
 
     const dateValue = taskData.date instanceof Date
       ? taskData.date.getTime()

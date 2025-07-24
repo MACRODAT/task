@@ -65,10 +65,10 @@ export function TaskModal({ isOpen, onOpenChange, onSave, task, entities, servic
       } else {
         form.reset({
           from: "SECMAR",
-          service: "",
+          service: "PROP",
           txt: "",
           date: new Date(),
-          comments: "",
+          comments: "RAS.",
           details: "",
         });
       }
@@ -101,10 +101,10 @@ export function TaskModal({ isOpen, onOpenChange, onSave, task, entities, servic
   const onSubmit = (data: Omit<Task, 'id' | 'done'>) => {
     const datePart = format(data.date, 'ddMMyy');
     const txtParts = data.txt.split('/');
-    if (txtParts.length === 3) {
+    if (txtParts.length === 2) {
       txtParts[2] = datePart;
       data.txt = txtParts.join('/');
-    } else if (txtParts.length === 2) {
+    } else if (txtParts.length < 2) {
       data.txt = `${txtParts[0]}/${txtParts[1]}/${datePart}`;
     }
     
