@@ -14,6 +14,7 @@ import {
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 
 const themes = [
   { name: "Zinc", class: "zinc" },
@@ -69,31 +70,56 @@ export function ThemeSwitcher() {
     localStorage.setItem(localStorageKey, JSON.stringify(customVars));
   }
 
-  const themeVariables = [
-    "--background",
-    "--foreground",
-    "--card",
-    "--card-foreground",
-    "--popover",
-    "--popover-foreground",
-    "--primary",
-    "--primary-foreground",
-    "--secondary",
-    "--secondary-foreground",
-    "--muted",
-    "--muted-foreground",
-    "--accent",
-    "--accent-foreground",
-    "--destructive",
-    "--destructive-foreground",
-    "--border",
-    "--input",
-    "--ring",
-    "--radius",
-    "--service-prop",
-    "--service-elec",
-    "--service-chaud",
-    "--service-sic",
+  const themeVariableGroups = [
+    {
+      name: "Background & Foreground",
+      variables: [
+        "--background",
+        "--foreground",
+        "--card",
+        "--card-foreground",
+        "--popover",
+      ],
+    },
+    {
+      name: "Popover & Primary",
+      variables: [
+        "--popover-foreground",
+        "--primary",
+        "--primary-foreground",
+        "--secondary",
+        "--secondary-foreground",
+      ],
+    },
+    {
+      name: "Muted & Accent",
+      variables: [
+        "--muted",
+        "--muted-foreground",
+        "--accent",
+        "--accent-foreground",
+      ],
+    },
+    {
+      name: "Destructive & Border",
+      variables: [
+        "--destructive",
+        "--destructive-foreground",
+        "--border",
+        "--input",
+        "--ring",
+      ],
+    },
+    {
+      name: "Radius & Service",
+      variables: [
+        "--radius",
+        "--service-prop",
+        "--service-elec",
+        "--service-chaud",
+        "--service-sic",
+      ],
+    },
   ];
 
 
@@ -137,21 +163,34 @@ export function ThemeSwitcher() {
               Adjust the CSS variables to create your own theme.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            {themeVariables.map((variable) => (
-              <div key={variable} className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor={variable} className="text-right">
-                  {variable}
-                </Label>
-                <Input
-                  id={variable}
-                  defaultValue={typeof window !== 'undefined' ? getComputedStyle(document.documentElement).getPropertyValue(variable).trim() : ''}
-                  className="col-span-3"
-                  onChange={(e) => handleCustomThemeChange(variable, e.target.value)}
-                />
-              </div>
+          <Tabs defaultValue={themeVariableGroups[0].name} className="w-full">
+            <TabsList className="flex-wrap">
+              {themeVariableGroups.map((group) => (
+                <TabsTrigger key={group.name} value={group.name}>
+                  {group.name}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            {themeVariableGroups.map((group) => (
+              <TabsContent key={group.name} value={group.name}>
+                <div className="grid gap-4 py-4">
+                  {group.variables.map((variable) => (
+                    <div key={variable} className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor={variable} className="text-right">
+                        {variable}
+                      </Label>
+                      <Input
+                        id={variable}
+                        defaultValue={typeof window !== 'undefined' ? getComputedStyle(document.documentElement).getPropertyValue(variable).trim() : ''}
+                        className="col-span-3"
+                        onChange={(e) => handleCustomThemeChange(variable, e.target.value)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </TabsContent>
             ))}
-          </div>
+          </Tabs>
         </DialogContent>
       </Dialog>
     </div>
