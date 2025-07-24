@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -160,6 +159,7 @@ export function TaskDashboard({ activeFolder, onTaskCountChange }: TaskDashboard
   };
 
   const handleSaveTask = async (taskData: Omit<Task, 'id' | 'done'>) => {
+    console.log(taskData);
     const fromValue = taskData.from;
     if (fromValue && !entities.some(e => e.value === fromValue)) {
       const newEntity = { value: fromValue, label: fromValue };
@@ -173,14 +173,32 @@ export function TaskDashboard({ activeFolder, onTaskCountChange }: TaskDashboard
     }
     
     const db = await getDb();
+
+    console.log(taskData)
+
+    const dateValue = taskData.date instanceof Date
+      ? taskData.date.getTime()
+      : typeof taskData.date === 'string'
+        ? new Date(taskData.date).getTime()
+        : taskData.date;
+    console.log(dateValue)
     // No setTasks needed, handled by DB and useTasks
-    if (taskToEdit) {
-      // Update task in DB
-      await db.tasks.upsert({ ...taskToEdit, ...taskData, done: taskToEdit.done });
+    if (taskToEdit && taskToEdit.id) {
+      await db.tasks.upsert({
+        id: taskToEdit.id,
+        from: taskData.from,
+        service: taskData.service,
+        txt: taskData.txt,
+        date: dateValue,
+        comments: taskData.comments,
+        details: taskData.details,
+        done: taskToEdit.done
+      });
       toast({ title: "Task updated successfully!" });
     } else {
       const newTask: Task = {
         ...taskData,
+        date: dateValue, // <-- This is always a number (timestamp)
         id: `TASK-${Math.floor(Math.random() * 10000)}`,
         done: false,
       };

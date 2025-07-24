@@ -75,6 +75,7 @@ export function TaskList({ tasks, filters, sort, onFilterChange, onSortChange, o
   const formatDateWithTryCatch = (date: any): string => {
     try {
       // Attempt to format the date
+      // console.log(date);
       return format(date, "dd/MM/yyyy");
     } catch (error) {
       // If format() throws an error, return a fallback string
