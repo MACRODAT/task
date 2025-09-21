@@ -19,35 +19,64 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 
-interface ComboboxProps {
+interface ComboboxProps extends Omit<React.HTMLAttributes<HTMLButtonElement>, 'onChange'> {
   options: { label: string; value: string }[]
   value?: string
   onChange: (value: string) => void
+  onEnter?: () => void;
   placeholder?: string
   emptyText?: string
   className?: string
   allowCustom?: boolean
 }
 
-export function Combobox({ 
-  options, 
-  value, 
-  onChange, 
-  placeholder = "Select option...", 
-  emptyText = "No option found.", 
+type ComboboxRef = {
+  focus: () => void
+}
+
+export const Combobox = React.forwardRef<ComboboxRef, ComboboxProps>(({ 
+  options,
+  value,
+  onChange,
+  onEnter,
+  placeholder = "Select option...",
+  emptyText = "No option found.",
   className,
-  allowCustom = false 
-}: ComboboxProps) {
+  allowCustom = false,
+  ...props
+}, ref) => {
   const [open, setOpen] = React.useState(false)
   const [inputValue, setInputValue] = React.useState("")
+  const buttonRef = React.useRef<HTMLButtonElement>(null);
   
+  const onEnterRef = React.useRef(onEnter);
+  onEnterRef.current = onEnter;
+
+  const isSelection = React.useRef(false);
+
+  React.useImperativeHandle(ref, () => ({
+    focus: () => {
+      buttonRef.current?.focus();
+      setOpen(true);
+    }
+  }));
+
   const handleSelect = (currentValue: string) => {
+    isSelection.current = true;
     onChange(currentValue === value ? "" : currentValue)
     setInputValue("")
     setOpen(false)
   }
 
-  const filteredOptions = inputValue 
+  const handleCloseAutoFocus = (event: Event) => {
+    if (isSelection.current) {
+        isSelection.current = false; // Reset the flag here
+        event.preventDefault();
+        onEnterRef.current?.();
+    }
+  }
+
+  const filteredOptions = inputValue
     ? options.filter(option => option.label.toLowerCase().includes(inputValue.toLowerCase()))
     : options
 
@@ -57,10 +86,13 @@ export function Combobox({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
+          ref={buttonRef}
           variant="outline"
           role="combobox"
           aria-expanded={open}
           className={cn("w-full justify-between", !value && "text-muted-foreground", className)}
+          onClick={() => setOpen(prev => !prev)}
+          {...props}
         >
           {value
             ? options.find((option) => option.value === value)?.label ?? value
@@ -68,10 +100,13 @@ export function Combobox({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+      <PopoverContent 
+        className="w-[--radix-popover-trigger-width] p-0"
+        onCloseAutoFocus={handleCloseAutoFocus}
+      >
         <Command>
-          <CommandInput 
-            placeholder={placeholder} 
+          <CommandInput
+            placeholder={placeholder}
             value={inputValue}
             onValueChange={setInputValue}
           />
@@ -110,4 +145,6 @@ export function Combobox({
       </PopoverContent>
     </Popover>
   )
-}
+});
+
+Combobox.displayName = "Combobox";

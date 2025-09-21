@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import type { Task } from "@/lib/data";
 import { taskSchema } from "@/lib/data";
 import {
@@ -11,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-  DialogClose
+  DialogClose,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,96 +26,111 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Combobox } from "@/components/ui/combobox";
-import { DatePicker } from "@/components/ui/datepicker";
-import { format } from "date-fns";
+import { DateInput } from "@/components/ui/date-input";
+import { parse, format } from "date-fns";
 
 interface TaskModalProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onSave: (taskData: Omit<Task, 'id' | 'done'>) => void;
+  onSave: (taskData: Omit<Task, "id" | "done">) => void;
   task: Task | null;
   entities: { label: string; value: string }[];
   services: { label: string; value: string }[];
-  folders: { label: string; value: string }[]; // New prop for folders
+  folders: { label: string; value: string }[];
 }
 
-export function TaskModal({ isOpen, onOpenChange, onSave, task, entities, services, folders }: TaskModalProps) {
-  const form = useForm<Omit<Task, 'id' | 'done'>>({
-    resolver: zodResolver(taskSchema.omit({ id: true, done: true})),
+const modalSchema = taskSchema
+  .omit({ id: true, done: true, txt: true, from: true, date: true })
+  .extend({
+    txtNumber: z.string().min(1, "Number is required."),
+    txtFrom: z.string().min(1, "From is required."),
+    txtDate: z.string().length(6, "Date must be in ddMMyy format."),
+  });
+
+type ModalTask = z.infer<typeof modalSchema>;
+
+export function TaskModal({
+  isOpen,
+  onOpenChange,
+  onSave,
+  task,
+  entities,
+  services,
+  folders,
+}: TaskModalProps) {
+  const form = useForm<ModalTask>({
+    resolver: zodResolver(modalSchema),
     defaultValues: {
-      from: "",
-      service: "",
-      txt: "",
-      date: undefined,
-      comments: "",
+      txtNumber: "",
+      txtFrom: "SECMAR",
+      txtDate: format(new Date(), 'ddMMyy'),
+      service: "PROP",
+      comments: "RAS.",
       details: "",
-      folder: "ALL", // Default folder
+      folder: "ALL",
     },
   });
+  
+  const fromComboboxRef = useRef<{ focus: () => void }>(null);
+  const dateInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
       if (task) {
+        const txtParts = task.txt.split('/');
         form.reset({
-          from: task.from,
           service: task.service,
-          txt: task.txt,
-          date: task.date,
           comments: task.comments,
           details: task.details,
-          folder: task.folder, // Set existing folder
+          folder: task.folder,
+          txtNumber: txtParts[0] || "",
+          txtFrom: txtParts[1] || "",
+          txtDate: txtParts[2] ? format(parse(txtParts[2], 'ddMMyy', new Date()), 'ddMMyy') : "",
         });
       } else {
         form.reset({
-          from: "SECMAR",
+          txtNumber: "",
+          txtFrom: "SECMAR",
+          txtDate: format(new Date(), 'ddMMyy'),
           service: "PROP",
-          txt: "",
-          date: new Date(),
           comments: "RAS.",
           details: "",
-          folder: "ALL", // Default folder for new tasks
+          folder: "ALL",
         });
       }
     }
   }, [task, form, isOpen]);
-  
-  const handleTxtKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Tab' && !e.shiftKey) {
-        const value = e.currentTarget.value;
-        const parts = value.split('/');
-        
-        if (parts.length === 1 && parts[0].length > 0) {
-            const firstPart = parts[0].padStart(3, '0');
-            form.setValue('txt', `${firstPart}/`);
-            e.preventDefault(); 
-        }
-    }
-  }, [form]);
-  
-  const handleTxtBlur = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    const parts = value.split('/');
-    if(parts.length > 0 && parts[0].length > 0 && parts[0].length < 3) {
-      const firstPart = parts[0].padStart(3, '0');
-      const restOfParts = parts.slice(1);
-      form.setValue('txt', [firstPart, ...restOfParts].join('/'));
-    }
-  }, [form]);
 
-  const onSubmit = (data: Omit<Task, 'id' | 'done'>) => {
-    const datePart = format(data.date, 'ddMMyy');
-    const txtParts = data.txt.split('/');
-    if (txtParts.length === 2) {
-      txtParts[2] = datePart;
-      data.txt = txtParts.join('/');
-    } else if (txtParts.length < 2) {
-      data.txt = `${txtParts[0]}/${txtParts[1]}/${datePart}`;
-    }
+  const onSubmit = (data: ModalTask) => {
+    const { txtNumber, txtFrom, txtDate, ...rest } = data;
+    const txt = `${txtNumber.padStart(3, '0')}/${txtFrom}/${txtDate}`;
     
-    onSave(data);
+    const parsedDate = parse(txtDate, "ddMMyy", new Date());
+    
+    const taskToSave: Omit<Task, 'id' | 'done'> = {
+      ...rest,
+      from: txtFrom,
+      txt,
+      date: !isNaN(parsedDate.getTime()) ? parsedDate : new Date(),
+    };
+
+    onSave(taskToSave);
     onOpenChange(false);
   };
   
+  const handleNumberKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Tab' && !e.shiftKey) {
+      e.preventDefault();
+      fromComboboxRef.current?.focus();
+    }
+  };
+  
+  const handleFromEnter = () => {
+    if (dateInputRef.current) {
+      dateInputRef.current.focus();
+    }
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px] md:max-w-lg h-5/6 flex flex-col">
@@ -122,21 +138,40 @@ export function TaskModal({ isOpen, onOpenChange, onSave, task, entities, servic
           <DialogTitle>{task ? "Edit Task" : "Add Task"}</DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 flex-1 flex flex-col">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="space-y-4 flex-1 flex flex-col"
+          >
+            <div className="grid grid-cols-[1fr,auto,1fr,auto,1fr] items-center gap-2">
               <FormField
                 control={form.control}
-                name="from"
+                name="txtNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>NUMBER</FormLabel>
+                    <FormControl>
+                      <Input {...field} onKeyDown={handleNumberKeyDown} className="font-code" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <span className="mt-8">/</span>
+              <FormField
+                control={form.control}
+                name="txtFrom"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>FROM</FormLabel>
                     <FormControl>
-                       <Combobox
+                      <Combobox
+                        ref={fromComboboxRef}
                         options={entities}
                         value={field.value}
                         onChange={field.onChange}
+                        onEnter={handleFromEnter}
                         placeholder="Select entity..."
-                        emptyText="No entity found. Type to create a new one."
+                        emptyText="No entity found."
                         allowCustom
                       />
                     </FormControl>
@@ -144,6 +179,26 @@ export function TaskModal({ isOpen, onOpenChange, onSave, task, entities, servic
                   </FormItem>
                 )}
               />
+              <span className="mt-8">/</span>
+               <FormField
+                control={form.control}
+                name="txtDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>DATE</FormLabel>
+                    <FormControl>
+                      <DateInput
+                        ref={dateInputRef}
+                        value={field.value}
+                        onChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <FormField
                 control={form.control}
                 name="service"
@@ -159,45 +214,25 @@ export function TaskModal({ isOpen, onOpenChange, onSave, task, entities, servic
                         emptyText="No service found. Type to create new one."
                         allowCustom
                       />
+
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-            </div>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <FormField
-                  control={form.control}
-                  name="folder"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>FOLDER</FormLabel>
-                      <FormControl>
-                        <Combobox
-                          options={folders}
-                          value={field.value}
-                          onChange={field.onChange}
-                          placeholder="Select folder..."
-                          emptyText="No folder found."
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              <FormField
+               <FormField
                 control={form.control}
-                name="txt"
+                name="folder"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>TXT</FormLabel>
+                    <FormLabel>FOLDER</FormLabel>
                     <FormControl>
-                      <Input
-                        placeholder="e.g., 123/ABC/010124"
-                        {...field}
-                        onKeyDown={handleTxtKeyDown}
-                        onBlur={handleTxtBlur}
-                        className="font-code"
+                      <Combobox
+                        options={folders}
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder="Select folder..."
+                        emptyText="No folder found."
                       />
                     </FormControl>
                     <FormMessage />
@@ -205,41 +240,42 @@ export function TaskModal({ isOpen, onOpenChange, onSave, task, entities, servic
                 )}
               />
             </div>
-              <FormField
+            <div className="flex-1 grid grid-cols-2 gap-4">
+                <FormField
                 control={form.control}
-                name="date"
+                name="details"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>DATE</FormLabel>
+                    <FormItem className="flex flex-col h-full">
+                    <FormLabel>DETAILS</FormLabel>
                     <FormControl>
-                       <DatePicker
-                         value={field.value}
-                         onChange={field.onChange}
-                       />
+                        <Textarea
+                        placeholder="Add all the details (max 200 chars)..."
+                        {...field}
+                        className="flex-1 h-full resize-none"
+                        />
                     </FormControl>
                     <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <div className="flex-1 grid gap-4">
-                <FormField
-                  control={form.control}
-                  name="details"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col h-full">
-                      <FormLabel>DETAILS</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Add all the details (max 200 chars)..."
-                          {...field}
-                          className="flex-1 h-[50%]"
-                        />
-                      </FormControl>
-                      <FormMessage />
                     </FormItem>
-                  )}
+                )}
                 />
-              </div>
+                <FormField
+                control={form.control}
+                name="comments"
+                render={({ field }) => (
+                    <FormItem className="flex flex-col h-full">
+                    <FormLabel>COMMENTS</FormLabel>
+                    <FormControl>
+                        <Textarea
+                        placeholder="Add comments (max 200 chars)..."
+                        {...field}
+                        className="flex-1 h-full resize-none"
+                        />
+                    </FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+            </div>
             <DialogFooter>
               <DialogClose asChild>
                 <Button type="button" variant="outline">
