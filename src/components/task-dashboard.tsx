@@ -11,6 +11,8 @@ import { CommentModal } from "@/components/comment-modal";
 import { PlusCircle, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { Input } from "@/components/ui/input";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 
 interface TaskDashboardProps {
   activeFolder: string;
@@ -32,6 +34,9 @@ export function TaskDashboard({ activeFolder, onTaskCountChange }: TaskDashboard
     details: "",
     service: "",
   });
+  const [globalSearch, setGlobalSearch] = useState("");
+  const allSearchableFields: Array<keyof Task> = ["from", "service", "date", "details", "comments"];
+  const [searchableFields, setSearchableFields] = useState<Array<keyof Task>>(allSearchableFields);
 
   const [sort, setSort] = useState<SortState>({ column: null, direction: null });
 
@@ -43,11 +48,16 @@ export function TaskDashboard({ activeFolder, onTaskCountChange }: TaskDashboard
     setSort(newSort);
   }
   
-  const clearFilters = () => {
+  const clearAllFilters = () => {
     setFilters({ from: "", txt: "", date: null, details: "", service: "" });
+    setGlobalSearch("");
+    setSearchableFields(allSearchableFields);
   };
   
-  const isAnyFilterActive = Object.values(filters).some(value => value !== "" && value !== null);
+  const isAnyFilterActive =
+    globalSearch !== '' ||
+    Object.values(filters).some(value => value !== '' && value !== null) ||
+    searchableFields.length !== allSearchableFields.length;
 
   const processedTasks = useMemo(() => {
     let folderTasks: Task[];
@@ -96,8 +106,30 @@ export function TaskDashboard({ activeFolder, onTaskCountChange }: TaskDashboard
         return fromMatch && txtMatch && detailsMatch && dateMatch && serviceMatch;
       });
 
+    const searched = filtered.filter(task => {
+      if (!globalSearch) return true;
+      return searchableFields.some(field => {
+        const value = task[field as keyof Task];
+        if (!value) return false;
+
+        if (field === 'date') {
+          try {
+            const date = new Date(value as string | number | Date);
+            if (isNaN(date.getTime())) return false;
+            return format(date, 'yyyy-MM-dd').includes(globalSearch);
+          } catch {
+            return false;
+          }
+        }
+        if (typeof value === 'string') {
+          return value.toLowerCase().includes(globalSearch.toLowerCase());
+        }
+        return false;
+      });
+    });
+
     if (sort.column && sort.direction) {
-      return [...filtered].sort((a, b) => {
+      return [...searched].sort((a, b) => {
         const aValue = a[sort.column as keyof Task];
         const bValue = b[sort.column as keyof Task];
 
@@ -121,7 +153,7 @@ export function TaskDashboard({ activeFolder, onTaskCountChange }: TaskDashboard
     }
 
     if(activeFolder === 'instance') {
-        return filtered.sort((a, b) => {
+        return searched.sort((a, b) => {
           let aTime = 0;
           let bTime = 0;
           try {
@@ -140,9 +172,9 @@ export function TaskDashboard({ activeFolder, onTaskCountChange }: TaskDashboard
         });
     }
 
-    return filtered;
+    return searched;
 
-  }, [tasks_, activeFolder, filters, sort]);
+  }, [tasks_, activeFolder, filters, sort, globalSearch, searchableFields]);
 
   useEffect(() => {
     onTaskCountChange(processedTasks.length);
@@ -236,8 +268,35 @@ export function TaskDashboard({ activeFolder, onTaskCountChange }: TaskDashboard
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-end gap-2">
+        <Input
+            placeholder="Search..."
+            value={globalSearch}
+            onChange={(e) => setGlobalSearch(e.target.value)}
+            className="max-w-sm"
+        />
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button variant="outline">Filter Columns</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+                {allSearchableFields.map(field => (
+                    <DropdownMenuCheckboxItem
+                        key={field}
+                        checked={searchableFields.includes(field)}
+                        onCheckedChange={(checked) => {
+                            const newFields = checked
+                                ? [...searchableFields, field]
+                                : searchableFields.filter(f => f !== field);
+                            setSearchableFields(newFields);
+                        }}
+                    >
+                        {field.charAt(0).toUpperCase() + field.slice(1)}
+                    </DropdownMenuCheckboxItem>
+                ))}
+            </DropdownMenuContent>
+        </DropdownMenu>
         {isAnyFilterActive && (
-          <Button variant="outline" onClick={clearFilters}>
+          <Button variant="outline" onClick={clearAllFilters}>
             <XCircle className="mr-2" />
             Clear Filters
           </Button>
