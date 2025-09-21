@@ -1,3 +1,4 @@
+
 export const MIGRATION_STATE_TASK_V0 = async (oldDoc: any) => {
   return {
     ...oldDoc,
@@ -13,6 +14,10 @@ export const MIGRATION_STATE_TASK_V1 = async (oldDoc: any) => {
 };
 
 export const MIGRATION_STATE_TASK_V2 = async (oldDoc: any) => {
+    return oldDoc;
+};
+
+export const MIGRATION_STATE_TASK_V3 = async (oldDoc: any) => {
     return oldDoc;
 };
 

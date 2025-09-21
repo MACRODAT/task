@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { useState, useMemo } from "react";
 import type { Task } from "@/lib/data";
@@ -113,7 +113,11 @@ export function TaskDashboard({
   const handleSaveComment = async (taskId: string, comments: string) => {
     const db = await getDb();
     const taskDoc = await db.tasks.findOne({ selector: { id: taskId } }).exec();
-    if (taskDoc) await taskDoc.patch({ comments });
+    if (taskDoc) {
+        const oldData = taskDoc.toJSON();
+        const newData = { ...oldData, comments };
+        await db.tasks.upsert(newData);
+    }
     setIsCommentModalOpen(false);
     setTaskToEdit(null);
     toast({ title: "Comment updated." });
@@ -145,7 +149,11 @@ export function TaskDashboard({
   const handleUpdateTaskInline = async (taskId: string, updates: Partial<Task>) => {
     const db = await getDb();
     const taskDoc = await db.tasks.findOne({ selector: { id: taskId } }).exec();
-    if (taskDoc) await taskDoc.patch(updates);
+    if (taskDoc) {
+        const oldData = taskDoc.toJSON();
+        const newData = { ...oldData, ...updates };
+        await db.tasks.upsert(newData);
+    }
   }
 
   return (

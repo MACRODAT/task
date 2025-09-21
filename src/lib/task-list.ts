@@ -1,21 +1,21 @@
-// app/components/tasks-list.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createRxDatabase, RxCollection, RxDatabase, addRxPlugin } from 'rxdb'; // Import addRxPlugin
+import { createRxDatabase, RxCollection, RxDatabase, addRxPlugin } from 'rxdb';
 import { getRxStorageDexie } from 'rxdb/plugins/storage-dexie';
 import { RxDBDevModePlugin } from 'rxdb/plugins/dev-mode';
 import { wrappedValidateAjvStorage } from 'rxdb/plugins/validate-ajv';
-import { RxDBMigrationSchemaPlugin } from 'rxdb/plugins/migration-schema'; // Corrected import for the migration schema plugin
+import { RxDBMigrationSchemaPlugin } from 'rxdb/plugins/migration-schema';
+import { RxDBUpdatePlugin } from 'rxdb/plugins/update';
+import { useObservable, useRxData } from 'rxdb-hooks';
+import { folderSchema } from './folder-schema';
+import { MIGRATION_STATE_TASK_V0, MIGRATION_STATE_TASK_V1, MIGRATION_STATE_TASK_V2, MIGRATION_STATE_TASK_V3, MIGRATION_STATE_FOLDER_V0 } from './migrations';
+import { from, switchMap } from 'rxjs';
 
-import { folderSchema } from './folder-schema'; // Your folder schema
-import { MIGRATION_STATE_TASK_V0, MIGRATION_STATE_TASK_V1, MIGRATION_STATE_TASK_V2, MIGRATION_STATE_FOLDER_V0 } from './migrations'; // Import new migration functions
-
-// Add plugins
 addRxPlugin(RxDBDevModePlugin);
 addRxPlugin(RxDBMigrationSchemaPlugin);
+addRxPlugin(RxDBUpdatePlugin);
 
-// Define custom RxCollection types
 interface TaskCollection extends RxCollection<any> {}
 interface FolderCollection extends RxCollection<any> {}
 
@@ -24,12 +24,14 @@ interface MyDatabaseCollections {
   folders: FolderCollection;
 }
 
-// This should be managed in a singleton/context, not in the component
-let dbPromise: Promise<RxDatabase<MyDatabaseCollections>> | null = null;
+type MyDatabase = RxDatabase<MyDatabaseCollections>;
 
-const createDb = async () => {
+let dbPromise: Promise<MyDatabase> | null = null;
+let activeDbName: string | null = null;
+
+const createDb = async (name: string) => {
   const db = await createRxDatabase<MyDatabaseCollections>({
-    name: 'tasksdbx2',
+    name: name,
     storage: wrappedValidateAjvStorage({
         storage: getRxStorageDexie(),
     }),
@@ -37,102 +39,116 @@ const createDb = async () => {
   await db.addCollections({
     tasks: {
         schema: {
-            version: 3, // Incremented schema version
+            version: 4,
             primaryKey: 'id',
             type: 'object',
             properties: {
                 id: { type: 'string', maxLength: 100 },
                 done: { type: 'boolean' },
-                from: { type: 'string' },
-                service: { type: 'string' },
+                from: { type: 'string', maxLength: 100 },
+                service: { type: 'string', maxLength: 100 },
                 txt: {
                     type: 'string',
-                    pattern: '^[0-9]{3,}/[a-zA-Z0-9]+/[0-9]{6}$', // Updated pattern to be case-insensitive
+                    pattern: '^[0-9]{3,}/[a-zA-Z0-9]+/[0-9]{6}$',
+                    maxLength: 100
                 },
-                date: { type: 'number' },
-                comments: { type: 'string' },
+                date: { 
+                    type: 'number', 
+                    multipleOf: 1,
+                    minimum: 0,
+                    maximum: 10000000000000
+                },
+                comments: { type: 'string', maxLength: 500 },
                 details: { type: 'string', maxLength: 200 },
-                folder: { type: 'string', default: 'ALL' },
+                folder: { type: 'string', default: 'ALL', maxLength: 100 },
             },
-            required: ['id', 'done', 'from', 'service', 'txt', 'date', 'folder'],
+            required: ['id', 'done', 'from', 'service', 'txt', 'date', 'details', 'folder'],
+            indexes: ['from', 'service', 'date', 'folder'],
         },
         migrationStrategies: {
             1: MIGRATION_STATE_TASK_V0,
             2: MIGRATION_STATE_TASK_V1,
-            3: MIGRATION_STATE_TASK_V2, // Added new migration strategy
+            3: MIGRATION_STATE_TASK_V2,
+            4: MIGRATION_STATE_TASK_V3
         },
     },
     folders: {
-      schema: folderSchema
+        schema: folderSchema
     },
-  });
-
-  // Ensure 'ALL' folder exists
-  const allFolder = await db.folders.findOne({ selector: { id: 'ALL' } }).exec();
-  if (!allFolder) {
-    await db.folders.insert({
-      id: 'ALL',
-      name: 'ALL',
-    });
-  }
-
+});
   return db;
 };
 
-const getDb = (): Promise<RxDatabase<MyDatabaseCollections>> => {
-    if (process.env.NODE_ENV === 'development') {
-        // In dev mode, use a global variable so that the value is not lost on module reload
-        if (!(global as any).dbPromise) {
-            (global as any).dbPromise = createDb();
-        }
-        return (global as any).dbPromise;
+export const getDb = (name?: string): Promise<MyDatabase> => {
+    const dbName = name || localStorage.getItem('inbox-selected-db') || 'tasksdbx2';
+
+    if (dbName === activeDbName && dbPromise) {
+        return dbPromise;
     }
-    // In production, this can be a module-scope variable
-    if (!dbPromise) {
-        dbPromise = createDb();
-    }
+    
+    activeDbName = dbName;
+    dbPromise = createDb(dbName);
     return dbPromise;
 };
 
-export { getDb };
+export const setActiveDatabase = (name: string) => {
+    localStorage.setItem('inbox-selected-db', name);
+    dbPromise = null; 
+    activeDbName = null;
+};
 
-export function useTasks() {
-  const [tasks, setTasks] = useState([]);
-
-  useEffect(() => {
-    const setup = async () => {
-      const db = await getDb();
-      const sub = db.tasks.find().$.subscribe((tasksFromDb:any) => {
-        if (tasksFromDb) {
-          setTasks(tasksFromDb);
+export const listDatabases = async (): Promise<string[]> => {
+    if (typeof window.indexedDB.databases === 'function') {
+        const dbs = await window.indexedDB.databases();
+        const dbNames = dbs
+            .map(db => db.name)
+            .filter((name): name is string => !!name)
+            .filter(name => name.startsWith('rxdb-dexie-'))
+            .map(name => name.replace('rxdb-dexie-', '').split('-')[0]);
+        
+        const uniqueNames = [...new Set(dbNames)];
+        if (!uniqueNames.includes('tasksdbx2')) {
+            uniqueNames.push('tasksdbx2');
         }
-      });
+        return uniqueNames;
+    }
+    const mainDb = localStorage.getItem('inbox-selected-db') || 'tasksdbx2';
+    return [mainDb];
+};
 
-      return () => sub.unsubscribe();
-    };
-    setup();
-  }, []);
 
-  return tasks;
-}
+export const useFolders = () => {
+    const [folders, setFolders] = useState<{ id: string, name: string }[]>([]);
 
-export function useFolders() {
-  const [folders, setFolders] = useState<{ id: string; name: string }[]>([]);
+    useEffect(() => {
+        const sub = from(getDb()).pipe(
+            switchMap(db => db.folders.find().$)
+        ).subscribe(folderDocs => {
+            if (folderDocs) {
+                setFolders(folderDocs.map(d => d.toJSON()));
+            }
+        });
 
-  useEffect(() => {
-    const setup = async () => {
-      const db = await getDb(); // Await the promise
+        return () => sub.unsubscribe();
+    }, []);
 
-      const sub = db.folders.find().$.subscribe((foldersFromDb: any) => {
-        if (foldersFromDb) {
-          setFolders(foldersFromDb);
-        }
-      });
+    return folders;
+};
 
-      return () => sub.unsubscribe();
-    };
-    setup();
-  }, []);
+export const useTasks = () => {
+    const [tasks, setTasks] = useState<any[]>([]);
 
-  return folders;
-}
+    useEffect(() => {
+        const sub = from(getDb()).pipe(
+            switchMap(db => db.tasks.find().$)
+        ).subscribe(taskDocs => {
+            if (taskDocs) {
+                setTasks(taskDocs.map(d => d.toJSON()));
+            }
+        });
+
+        return () => sub.unsubscribe();
+    }, []);
+
+    return tasks;
+};

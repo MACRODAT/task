@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { getDb } from '@/lib/task-list';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { getDb, listDatabases, setActiveDatabase } from '@/lib/task-list';
 import { useToast } from '@/hooks/use-toast';
 import { Task } from '@/lib/data';
 
@@ -26,6 +27,39 @@ export function SettingsModal({ isOpen, onOpenChange }: SettingsModalProps) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
+  const [databases, setDatabases] = useState<string[]>([]);
+  const [selectedDb, setSelectedDb] = useState<string>('');
+  const [newDbName, setNewDbName] = useState('');
+
+
+  useEffect(() => {
+    if (isOpen) {
+      listDatabases().then(dbs => {
+        setDatabases(dbs);
+        const currentDb = localStorage.getItem('inbox-selected-db') || 'tasksdbx2';
+        setSelectedDb(currentDb);
+      });
+    }
+  }, [isOpen]);
+
+  const handleDbSelectionChange = (dbName: string) => {
+    setSelectedDb(dbName);
+    setActiveDatabase(dbName);
+    window.location.reload();
+  };
+
+  const handleCreateNewDatabase = async () => {
+    if (newDbName && !databases.includes(newDbName)) {
+        await getDb(newDbName);
+        setDatabases([...databases, newDbName]);
+        handleDbSelectionChange(newDbName);
+    } else {
+        toast({
+            title: 'Database already exists or name is invalid',
+            variant: 'destructive'
+        })
+    }
+  };
 
   const handleExport = async () => {
     const db = await getDb();
@@ -179,12 +213,38 @@ export function SettingsModal({ isOpen, onOpenChange }: SettingsModalProps) {
                 <h2 className="text-2xl font-semibold mb-4">Data</h2>
                 <div className="space-y-8">
                     <section>
-                        <h3 className="text-lg font-semibold">Import / Export</h3>
-                        <p className="text-sm text-muted-foreground mb-4">Export all data to a JSON file, or import data from a file.</p>
-                        <div className="flex gap-2">
-                            <Button onClick={handleExport}>Export data</Button>
-                            <Button onClick={handleImport} variant="outline">Import data</Button>
-                            <Input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept=".json"/>
+                        <h3 className="text-lg font-semibold">Manage Data</h3>
+                        <p className="text-sm text-muted-foreground mb-4">Select, create, import, or export your data.</p>
+                        
+                        <div className="space-y-4">
+                            <div>
+                                <h4 className="font-medium">Select Database</h4>
+                                <Select onValueChange={handleDbSelectionChange} value={selectedDb}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select a database" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {databases.map(db => <SelectItem key={db} value={db}>{db}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div>
+                                <h4 className="font-medium">Create New Database</h4>
+                                <div className="flex gap-2">
+                                    <Input value={newDbName} onChange={(e) => setNewDbName(e.target.value)} placeholder="New database name" />
+                                    <Button onClick={handleCreateNewDatabase}>Create</Button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h4 className="font-medium">Import / Export</h4>
+                                <div className="flex gap-2">
+                                    <Button onClick={handleExport}>Export data</Button>
+                                    <Button onClick={handleImport} variant="outline">Import data</Button>
+                                    <Input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept=".json"/>
+                                </div>
+                            </div>
                         </div>
                     </section>
 
