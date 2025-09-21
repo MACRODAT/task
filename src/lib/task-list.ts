@@ -7,7 +7,6 @@ import { RxDBDevModePlugin } from 'rxdb/plugins/dev-mode';
 import { wrappedValidateAjvStorage } from 'rxdb/plugins/validate-ajv';
 import { RxDBMigrationSchemaPlugin } from 'rxdb/plugins/migration-schema';
 import { RxDBUpdatePlugin } from 'rxdb/plugins/update';
-import { useObservable, useRxData } from 'rxdb-hooks';
 import { folderSchema } from './folder-schema';
 import { MIGRATION_STATE_TASK_V0, MIGRATION_STATE_TASK_V1, MIGRATION_STATE_TASK_V2, MIGRATION_STATE_TASK_V3, MIGRATION_STATE_FOLDER_V0 } from './migrations';
 import { from, switchMap } from 'rxjs';
