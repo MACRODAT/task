@@ -9,7 +9,8 @@ import { TaskList, type FilterState, type SortState } from "@/components/task-li
 import { TaskModal } from "@/components/task-modal";
 import { FolderModal } from "@/components/folder-modal";
 import { CommentModal } from "@/components/comment-modal";
-import { PlusCircle, XCircle, FolderEdit } from "lucide-react";
+import { SettingsModal } from "@/components/settings-modal";
+import { PlusCircle, XCircle, FolderEdit, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
@@ -45,6 +46,7 @@ export function TaskDashboard({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
   const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
   const [folderToEdit, setFolderToEdit] = useState<{ id: string; name: string } | null>(null);
   const { toast } = useToast();
@@ -188,6 +190,9 @@ export function TaskDashboard({
               <PlusCircle className="mr-2" />
               Add Task
             </Button>
+            <Button variant="outline" size="icon" onClick={() => setIsSettingsModalOpen(true)}>
+              <Settings className="h-4 w-4" />
+            </Button>
         </div>
         <TaskList 
             tasks={tasks}
@@ -220,6 +225,10 @@ export function TaskDashboard({
             onOpenChange={setIsFolderModalOpen}
             onSave={handleSaveFolder}
             folder={folderToEdit}
+        />
+        <SettingsModal
+            isOpen={isSettingsModalOpen}
+            onOpenChange={setIsSettingsModalOpen}
         />
     </div>
   );
