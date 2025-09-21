@@ -1,1 +1,5 @@
-// Flows will be imported for their side effects in this file.
+import { MIGRATION_STATE_TASK } from '../lib/migrations';
+
+export const migrations = {
+  0: MIGRATION_STATE_TASK,
+};

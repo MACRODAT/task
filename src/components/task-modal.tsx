@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useCallback } from "react";
@@ -36,9 +35,10 @@ interface TaskModalProps {
   task: Task | null;
   entities: { label: string; value: string }[];
   services: { label: string; value: string }[];
+  folders: { label: string; value: string }[]; // New prop for folders
 }
 
-export function TaskModal({ isOpen, onOpenChange, onSave, task, entities, services }: TaskModalProps) {
+export function TaskModal({ isOpen, onOpenChange, onSave, task, entities, services, folders }: TaskModalProps) {
   const form = useForm<Omit<Task, 'id' | 'done'>>({
     resolver: zodResolver(taskSchema.omit({ id: true, done: true})),
     defaultValues: {
@@ -48,6 +48,7 @@ export function TaskModal({ isOpen, onOpenChange, onSave, task, entities, servic
       date: undefined,
       comments: "",
       details: "",
+      folder: "ALL", // Default folder
     },
   });
 
@@ -61,6 +62,7 @@ export function TaskModal({ isOpen, onOpenChange, onSave, task, entities, servic
           date: task.date,
           comments: task.comments,
           details: task.details,
+          folder: task.folder, // Set existing folder
         });
       } else {
         form.reset({
@@ -70,6 +72,7 @@ export function TaskModal({ isOpen, onOpenChange, onSave, task, entities, servic
           date: new Date(),
           comments: "RAS.",
           details: "",
+          folder: "ALL", // Default folder for new tasks
         });
       }
     }
@@ -162,7 +165,27 @@ export function TaskModal({ isOpen, onOpenChange, onSave, task, entities, servic
                 )}
               />
             </div>
-             <FormField
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <FormField
+                  control={form.control}
+                  name="folder"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>FOLDER</FormLabel>
+                      <FormControl>
+                        <Combobox
+                          options={folders}
+                          value={field.value}
+                          onChange={field.onChange}
+                          placeholder="Select folder..."
+                          emptyText="No folder found."
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              <FormField
                 control={form.control}
                 name="txt"
                 render={({ field }) => (
@@ -181,6 +204,7 @@ export function TaskModal({ isOpen, onOpenChange, onSave, task, entities, servic
                   </FormItem>
                 )}
               />
+            </div>
               <FormField
                 control={form.control}
                 name="date"

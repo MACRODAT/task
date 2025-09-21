@@ -1,7 +1,7 @@
 import { RxJsonSchema } from 'rxdb';
 
 export const taskSchema: RxJsonSchema<any> = {
-  version: 0,
+  version: 2, // Increment the version again for a new migration
   primaryKey: 'id',
   type: 'object',
   properties: {
@@ -16,6 +16,7 @@ export const taskSchema: RxJsonSchema<any> = {
     date: { type: 'number' }, // Store date as a timestamp
     comments: { type: 'string' },
     details: { type: 'string', maxLength: 200 },
+    folder: { type: 'string', default: 'ALL' }, // The correct folder property
   },
-  required: ['id', 'done', 'from', 'service', 'txt', 'date'],
+  required: ['id', 'done', 'from', 'service', 'txt', 'date', 'folder'], // The correct required fields
 };

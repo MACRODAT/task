@@ -1,184 +1,61 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import type { Task } from "@/lib/data";
 import { initialEntities, services as initialServices } from "@/lib/data";
-import { useTasks, getDb } from '@/lib/task-list'
+import { useFolders, getDb } from '@/lib/task-list'
 import { Button } from "@/components/ui/button";
 import { TaskList, type FilterState, type SortState } from "@/components/task-list";
 import { TaskModal } from "@/components/task-modal";
+import { FolderModal } from "@/components/folder-modal";
 import { CommentModal } from "@/components/comment-modal";
-import { PlusCircle, XCircle } from "lucide-react";
+import { PlusCircle, XCircle, FolderEdit } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
 import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 
 interface TaskDashboardProps {
-  activeFolder: string;
-  onTaskCountChange: (count: number) => void;
+  tasks: Task[]; 
+  filters: FilterState;
+  sort: SortState;
+  globalSearch: string;
+  searchableFields: Array<keyof Task>;
+  onFilterChange: (newFilters: Partial<FilterState>) => void;
+  onSortChange: (newSort: SortState) => void;
+  onGlobalSearchChange: (value: string) => void;
+  onSearchableFieldsChange: (fields: Array<keyof Task>) => void;
+  onClearAllFilters: () => void;
 }
 
-export function TaskDashboard({ activeFolder, onTaskCountChange }: TaskDashboardProps) {
-  const tasks_: Task[] = useTasks();
+export function TaskDashboard({
+  tasks,
+  filters,
+  sort,
+  globalSearch,
+  searchableFields,
+  onFilterChange,
+  onSortChange,
+  onGlobalSearchChange,
+  onSearchableFieldsChange,
+  onClearAllFilters,
+}: TaskDashboardProps) {
+  const folders_ = useFolders();
   const [entities, setEntities] = useState(initialEntities);
   const [services, setServices] = useState(initialServices);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
+  const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
+  const [folderToEdit, setFolderToEdit] = useState<{ id: string; name: string } | null>(null);
   const { toast } = useToast();
-  const [filters, setFilters] = useState<FilterState>({
-    from: "",
-    txt: "",
-    date: null,
-    details: "",
-    service: "",
-  });
-  const [globalSearch, setGlobalSearch] = useState("");
   const allSearchableFields: Array<keyof Task> = ["from", "service", "date", "details", "comments"];
-  const [searchableFields, setSearchableFields] = useState<Array<keyof Task>>(allSearchableFields);
 
-  const [sort, setSort] = useState<SortState>({ column: null, direction: null });
-
-  const handleFilterChange = (newFilters: Partial<FilterState>) => {
-    setFilters(prev => ({...prev, ...newFilters}));
-  };
-
-  const handleSortChange = (newSort: SortState) => {
-    setSort(newSort);
-  }
-  
-  const clearAllFilters = () => {
-    setFilters({ from: "", txt: "", date: null, details: "", service: "" });
-    setGlobalSearch("");
-    setSearchableFields(allSearchableFields);
-  };
+  const folders = useMemo(() => folders_.map(f => ({ label: f.name, value: f.id })), [folders_]);
   
   const isAnyFilterActive =
     globalSearch !== '' ||
     Object.values(filters).some(value => value !== '' && value !== null) ||
     searchableFields.length !== allSearchableFields.length;
-
-  const processedTasks = useMemo(() => {
-    let folderTasks: Task[];
-    switch (activeFolder) {
-      case "instance":
-        folderTasks = tasks_
-          .filter((task) => !task.done);
-        break;
-      case "classed":
-        folderTasks = tasks_.filter((task) => task.done);
-        break;
-
-      case "main":
-      default:
-        folderTasks = tasks_;
-    }
-
-    const filtered = folderTasks.filter(task => {
-        const fromMatch = filters.from
-          ? new RegExp(filters.from.replace(/\*/g, '.*'), 'i').test(task.from)
-          : true;
-        const txtMatch = filters.txt
-          ? new RegExp(filters.txt.replace(/\*/g, '.*'), 'i').test(task.txt)
-          : true;
-        const detailsMatch = filters.details
-          ? new RegExp(filters.details.replace(/\*/g, '.*'), 'i').test(task.details || '')
-          : true;
-        const serviceMatch = filters.service
-          ? new RegExp(filters.service.replace(/\*/g, '.*'), 'i').test(task.service)
-          : true;
-        let dateMatch = true;
-        if (filters.date) {
-          try {
-            if (
-              !task.date ||
-              isNaN(new Date(task.date).getTime()) ||
-              format(new Date(task.date), 'yyyy-MM-dd') !== format(filters.date, 'yyyy-MM-dd')
-            ) {
-              dateMatch = false;
-            }
-          } catch (e) {
-            console.error('Invalid date in task:', task, e);
-            dateMatch = false;
-          }
-        }
-        return fromMatch && txtMatch && detailsMatch && dateMatch && serviceMatch;
-      });
-
-    const searched = filtered.filter(task => {
-      if (!globalSearch) return true;
-      return searchableFields.some(field => {
-        const value = task[field as keyof Task];
-        if (!value) return false;
-
-        if (field === 'date') {
-          try {
-            const date = new Date(value as string | number | Date);
-            if (isNaN(date.getTime())) return false;
-            return format(date, 'yyyy-MM-dd').includes(globalSearch);
-          } catch {
-            return false;
-          }
-        }
-        if (typeof value === 'string') {
-          return value.toLowerCase().includes(globalSearch.toLowerCase());
-        }
-        return false;
-      });
-    });
-
-    if (sort.column && sort.direction) {
-      return [...searched].sort((a, b) => {
-        const aValue = a[sort.column as keyof Task];
-        const bValue = b[sort.column as keyof Task];
-
-        if (aValue === null || aValue === undefined) return 1;
-        if (bValue === null || bValue === undefined) return -1;
-        
-        let comparison = 0;
-        if (typeof aValue === 'string' && typeof bValue === 'string') {
-          comparison = aValue.localeCompare(bValue);
-        } else if (aValue instanceof Date && bValue instanceof Date) {
-          comparison = aValue.getTime() - bValue.getTime();
-        } else if (typeof aValue === 'number' && typeof bValue === 'number') {
-            comparison = aValue - bValue;
-        } else if (typeof aValue === 'boolean' && typeof bValue === 'boolean') {
-            comparison = aValue === bValue ? 0 : aValue ? -1 : 1;
-        }
-
-
-        return sort.direction === 'asc' ? comparison : -comparison;
-      });
-    }
-
-    if(activeFolder === 'instance') {
-        return searched.sort((a, b) => {
-          let aTime = 0;
-          let bTime = 0;
-          try {
-            aTime = a.date && !isNaN(new Date(a.date).getTime()) ? new Date(a.date).getTime() : 0;
-          } catch (e) {
-            console.error('Invalid date in task (a):', a, e);
-            aTime = 0;
-          }
-          try {
-            bTime = b.date && !isNaN(new Date(b.date).getTime()) ? new Date(b.date).getTime() : 0;
-          } catch (e) {
-            console.error('Invalid date in task (b):', b, e);
-            bTime = 0;
-          }
-          return aTime - bTime;
-        });
-    }
-
-    return searched;
-
-  }, [tasks_, activeFolder, filters, sort, globalSearch, searchableFields]);
-
-  useEffect(() => {
-    onTaskCountChange(processedTasks.length);
-  }, [processedTasks, onTaskCountChange]);
 
   const handleOpenModal = (task: Task | null) => {
     setTaskToEdit(task);
@@ -190,49 +67,41 @@ export function TaskDashboard({ activeFolder, onTaskCountChange }: TaskDashboard
     setIsCommentModalOpen(true);
   };
 
+  const handleOpenFolderModal = (folder: { id: string; name: string } | null) => {
+    setFolderToEdit(folder);
+    setIsFolderModalOpen(true);
+  };
+
   const handleSaveTask = async (taskData: Omit<Task, 'id' | 'done'>) => {
-    // console.log(taskData);
     const fromValue = taskData.from;
     if (fromValue && !entities.some(e => e.value === fromValue)) {
-      const newEntity = { value: fromValue, label: fromValue };
-      setEntities(prev => [...prev, newEntity]);
+      setEntities(prev => [...prev, { value: fromValue, label: fromValue }]);
     }
 
     const serviceValue = taskData.service;
     if (serviceValue && !services.some(s => s.value === serviceValue)) {
-      const newService = { value: serviceValue, label: serviceValue };
-      setServices(prev => [...prev, newService]);
+      setServices(prev => [...prev, { value: serviceValue, label: serviceValue }]);
     }
     
     const db = await getDb();
+    const dateValue = taskData.date instanceof Date ? taskData.date.getTime() : typeof taskData.date === 'string' ? new Date(taskData.date).getTime() : taskData.date;
 
-    const dateValue = taskData.date instanceof Date
-      ? taskData.date.getTime()
-      : typeof taskData.date === 'string'
-        ? new Date(taskData.date).getTime()
-        : taskData.date;
-    console.log(dateValue)
-    // No setTasks needed, handled by DB and useTasks
     if (taskToEdit && taskToEdit.id) {
       await db.tasks.upsert({
         id: taskToEdit.id,
-        from: taskData.from,
-        service: taskData.service,
-        txt: taskData.txt,
+        ...taskData,
         date: dateValue,
-        comments: taskData.comments,
-        details: taskData.details,
-        done: taskToEdit.done
+        done: taskToEdit.done, 
       });
       toast({ title: "Task updated successfully!" });
     } else {
-      const newTask: Task = {
+      await db.tasks.insert({
         ...taskData,
-        date: dateValue, // <-- This is always a number (timestamp)
+        date: dateValue,
         id: `TASK-${Math.floor(Math.random() * 10000)}`,
         done: false,
-      };
-      await db.tasks.insert(newTask);
+        folder: taskData.folder || 'ALL', 
+      });
       toast({ title: "Task added successfully!" });
     }
     setIsModalOpen(false);
@@ -240,11 +109,27 @@ export function TaskDashboard({ activeFolder, onTaskCountChange }: TaskDashboard
   };
 
   const handleSaveComment = async (taskId: string, comments: string) => {
-    await handleUpdateTaskInline(taskId, { comments });
+    const db = await getDb();
+    const taskDoc = await db.tasks.findOne({ selector: { id: taskId } }).exec();
+    if (taskDoc) await taskDoc.patch({ comments });
     setIsCommentModalOpen(false);
     setTaskToEdit(null);
     toast({ title: "Comment updated." });
   }
+
+  const handleSaveFolder = async (folderName: string) => {
+    const db = await getDb();
+    if (folderToEdit) {
+      await db.folders.upsert({ id: folderToEdit.id, name: folderName });
+      toast({ title: "Folder updated successfully!" });
+    } else {
+      const newFolderId = folderName.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      await db.folders.insert({ id: newFolderId, name: folderName });
+      toast({ title: "Folder added successfully!" });
+    }
+    setIsFolderModalOpen(false);
+    setFolderToEdit(null);
+  };
 
   const handleDeleteTask = async (taskId: string) => {
     const db = await getDb();
@@ -253,84 +138,89 @@ export function TaskDashboard({ activeFolder, onTaskCountChange }: TaskDashboard
       await taskDoc.remove();
       toast({ title: "Task deleted", variant: "destructive" });
     }
-    // No setTasks needed, handled by DB and useTasks
   };
   
   const handleUpdateTaskInline = async (taskId: string, updates: Partial<Task>) => {
     const db = await getDb();
     const taskDoc = await db.tasks.findOne({ selector: { id: taskId } }).exec();
-    if (taskDoc) {
-      await taskDoc.patch(updates);
-    }
-    // No setTasks needed, handled by DB and useTasks
+    if (taskDoc) await taskDoc.patch(updates);
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-end gap-2">
-        <Input
-            placeholder="Search..."
-            value={globalSearch}
-            onChange={(e) => setGlobalSearch(e.target.value)}
-            className="max-w-sm"
+        <div className="flex items-center justify-end gap-2">
+            <Input
+                placeholder="Search..."
+                value={globalSearch}
+                onChange={(e) => onGlobalSearchChange(e.target.value)}
+                className="max-w-sm"
+            />
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="outline">Filter Columns</Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                    {allSearchableFields.map(field => (
+                        <DropdownMenuCheckboxItem
+                            key={field}
+                            checked={searchableFields.includes(field)}
+                            onCheckedChange={(checked) => {
+                                const newFields = checked ? [...searchableFields, field] : searchableFields.filter(f => f !== field);
+                                onSearchableFieldsChange(newFields);
+                            }}
+                        >
+                            {field.charAt(0).toUpperCase() + field.slice(1)}
+                        </DropdownMenuCheckboxItem>
+                    ))}
+                </DropdownMenuContent>
+            </DropdownMenu>
+            {isAnyFilterActive && (
+              <Button variant="outline" onClick={onClearAllFilters}>
+                <XCircle className="mr-2" />
+                Clear Filters
+              </Button>
+            )}
+            <Button onClick={() => handleOpenFolderModal(null)}>
+              <FolderEdit className="mr-2" />
+              Edit Folders
+            </Button>
+            <Button onClick={() => handleOpenModal(null)}>
+              <PlusCircle className="mr-2" />
+              Add Task
+            </Button>
+        </div>
+        <TaskList 
+            tasks={tasks}
+            filters={filters}
+            sort={sort}
+            onFilterChange={onFilterChange}
+            onSortChange={onSortChange}
+            onEdit={task => handleOpenModal(task)}
+            onEditComment={handleOpenCommentModal}
+            onDelete={handleDeleteTask}
+            onUpdate={handleUpdateTaskInline}
         />
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <Button variant="outline">Filter Columns</Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-                {allSearchableFields.map(field => (
-                    <DropdownMenuCheckboxItem
-                        key={field}
-                        checked={searchableFields.includes(field)}
-                        onCheckedChange={(checked) => {
-                            const newFields = checked
-                                ? [...searchableFields, field]
-                                : searchableFields.filter(f => f !== field);
-                            setSearchableFields(newFields);
-                        }}
-                    >
-                        {field.charAt(0).toUpperCase() + field.slice(1)}
-                    </DropdownMenuCheckboxItem>
-                ))}
-            </DropdownMenuContent>
-        </DropdownMenu>
-        {isAnyFilterActive && (
-          <Button variant="outline" onClick={clearAllFilters}>
-            <XCircle className="mr-2" />
-            Clear Filters
-          </Button>
-        )}
-        <Button onClick={() => handleOpenModal(null)}>
-          <PlusCircle className="mr-2" />
-          Add Task
-        </Button>
-      </div>
-      <TaskList 
-        tasks={processedTasks}
-        filters={filters}
-        sort={sort}
-        onFilterChange={handleFilterChange}
-        onSortChange={handleSortChange}
-        onEdit={task => handleOpenModal(task)}
-        onEditComment={handleOpenCommentModal}
-        onDelete={handleDeleteTask}
-        onUpdate={handleUpdateTaskInline}
-      />
-      <TaskModal
-        isOpen={isModalOpen}
-        onOpenChange={setIsModalOpen}
-        onSave={handleSaveTask}
-        task={taskToEdit}
-        entities={entities}
-        services={services}
-      />
-      <CommentModal
-        isOpen={isCommentModalOpen}
-        onOpenChange={setIsCommentModalOpen}
-        onSave={handleSaveComment}
-        task={taskToEdit}
-      />
+        <TaskModal
+            isOpen={isModalOpen}
+            onOpenChange={setIsModalOpen}
+            onSave={handleSaveTask}
+            task={taskToEdit}
+            entities={entities}
+            services={services}
+            folders={folders}
+        />
+        <CommentModal
+            isOpen={isCommentModalOpen}
+            onOpenChange={setIsCommentModalOpen}
+            onSave={handleSaveComment}
+            task={taskToEdit}
+        />
+        <FolderModal
+            isOpen={isFolderModalOpen}
+            onOpenChange={setIsFolderModalOpen}
+            onSave={handleSaveFolder}
+            folder={folderToEdit}
+        />
     </div>
   );
 }
