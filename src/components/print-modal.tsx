@@ -5,7 +5,8 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Progress } from './ui/progress';
 import { ProgressStep, printTasks } from '@/lib/print';
-import { Task } from '@/lib/task-schema';
+// import { Task } from '@/lib/task-schema';
+import type { Task } from "@/lib/data";
 
 interface PrintModalProps {
   isOpen: boolean;

@@ -1,7 +1,7 @@
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 import { saveAs } from "file-saver";
-import { Task } from "./task-schema";
+import type { Task } from "@/lib/data";
 
 export interface ProgressStep {
   name: string;
