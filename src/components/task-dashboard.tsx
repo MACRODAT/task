@@ -10,7 +10,8 @@ import { TaskModal } from "@/components/task-modal";
 import { FolderModal } from "@/components/folder-modal";
 import { CommentModal } from "@/components/comment-modal";
 import { SettingsModal } from "@/components/settings-modal";
-import { PlusCircle, XCircle, FolderEdit, Settings } from "lucide-react";
+import { PrintModal } from "@/components/print-modal"; // Import PrintModal
+import { PlusCircle, XCircle, FolderEdit, Settings, Printer } from "lucide-react"; // Import Printer icon
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
@@ -47,6 +48,7 @@ export function TaskDashboard({
   const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
   const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false); // Add state for PrintModal
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
   const [folderToEdit, setFolderToEdit] = useState<{ id: string; name: string } | null>(null);
   const { toast } = useToast();
@@ -190,6 +192,10 @@ export function TaskDashboard({
                 Clear Filters
               </Button>
             )}
+            <Button onClick={() => setIsPrintModalOpen(true)}> {/* Add Print Button */}
+              <Printer className="mr-2" />
+              Print
+            </Button>
             <Button onClick={() => handleOpenFolderModal(null)}>
               <FolderEdit className="mr-2" />
               Edit Folders
@@ -237,6 +243,11 @@ export function TaskDashboard({
         <SettingsModal
             isOpen={isSettingsModalOpen}
             onOpenChange={setIsSettingsModalOpen}
+        />
+        <PrintModal // Render PrintModal
+          isOpen={isPrintModalOpen}
+          onClose={() => setIsPrintModalOpen(false)}
+          tasks={tasks}
         />
     </div>
   );
